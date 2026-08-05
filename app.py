@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import io
 
 # Configuración de la página
 st.set_page_config(page_title="Analizador de Put Spreads", layout="wide")
@@ -104,6 +105,12 @@ if botón_calcular:
                     diferencia_strikes = strike_sup - strike_inf
                     perdida_maxima = (diferencia_strikes - prima_neta) * 100
                     
+                    # Cálculo de la relación Utilidad / Pérdida (%)
+                    if perdida_maxima > 0:
+                        ratio_utilidad_perdida = (utilidad_maxima / perdida_maxima) * 100
+                    else:
+                        ratio_utilidad_perdida = 0.0
+                    
                     resultados.append({
                         "Ticker": ticker,
                         "Precio Spot ($)": round(spot_price, 2),
@@ -117,6 +124,7 @@ if botón_calcular:
                         "Importe a Recibir ($)": round(importe_recibir, 2),
                         "Utilidad Máx ($)": round(utilidad_maxima, 2),
                         "Pérdida Máx ($)": round(perdida_maxima, 2),
+                        "Utilidad/Pérdida (%)": round(ratio_utilidad_perdida, 2),
                         "Estado": "OK"
                     })
                     
@@ -131,6 +139,34 @@ if botón_calcular:
             df_ok = df_res[df_res["Estado"] == "OK"].drop(columns=["Estado"])
             st.subheader("📊 Resultados de las Estrategias")
             st.dataframe(df_ok, use_container_width=True)
+            
+            # --- SECCIÓN DE DESCARGA DE ARCHIVOS ---
+            st.markdown("### 📥 Descargar Resultados")
+            col1, col2 = st.columns(2)
+            
+            # Descarga CSV
+            csv_data = df_ok.to_csv(index=False).encode('utf-8')
+            col1.download_button(
+                label="📄 Descargar como CSV",
+                data=csv_data,
+                file_name=f"put_spreads_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                type="secondary"
+            )
+            
+            # Descarga Excel
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df_ok.to_excel(writer, index=False, sheet_name='Put_Spreads')
+            excel_data = buffer.getvalue()
+            
+            col2.download_button(
+                label="📊 Descargar como Excel (.xlsx)",
+                data=excel_data,
+                file_name=f"put_spreads_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="secondary"
+            )
             
             # Mostrar errores o advertencias si los hubo
             df_err = df_res[df_res["Estado"] != "OK"][["Ticker", "Estado"]]
