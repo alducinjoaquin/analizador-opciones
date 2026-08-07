@@ -181,6 +181,28 @@ if st.sidebar.button("🚀 Ejecutar Backtest") and 3 <= len(tickers) <= 10:
         m5.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}" if not np.isnan(sharpe_ratio) else "N/A")
 
         # ----------------------------------
+        # TABLA DESGLOSADA POR ACTIVO
+        # ----------------------------------
+        st.subheader("📋 Detalle Individual por Activo")
+        
+        assets_summary = []
+        for i, t in enumerate(tickers):
+            p_initial = data[t].iloc[0]
+            p_final = data[t].iloc[-1]
+            abs_ret = ((p_final / p_initial) - 1) * 100
+            
+            assets_summary.append({
+                "Ticker": t,
+                "Peso Asignado (%)": f"{weights[i] * 100:.2f}%",
+                "Precio Inicial (USD)": f"${p_initial:,.2f}",
+                "Precio Final (USD)": f"${p_final:,.2f}",
+                "Rendimiento Absoluto (%)": f"{abs_ret:+.2f}%"
+            })
+            
+        summary_table_df = pd.DataFrame(assets_summary)
+        st.dataframe(summary_table_df, use_container_width=True, hide_index=True)
+
+        # ----------------------------------
         # CUADRO DE TEXTO COMPARATIVO
         # ----------------------------------
         st.subheader("📝 Resumen Ejecutivo de Retornos")
