@@ -19,7 +19,17 @@ tickers_input = st.sidebar.text_input(
 )
 
 plazo_dias = st.sidebar.number_input("Plazo objetivo (días a expiración):", min_value=1, value=30, step=1)
-offset = st.sidebar.number_input("Offset sobre precio Spot ($):", min_value=0.0, value=5.0, step=0.5)
+
+# NUEVA LÓGICA DE OFFSET EN PASOS DE STRIKES (0 A 5)
+offset_pasos = st.sidebar.number_input(
+    "Offset en número de strikes (0 a 5):", 
+    min_value=0, 
+    max_value=5, 
+    value=0, 
+    step=1,
+    help="0 selecciona el strike disponible más cercano por debajo o igual al precio Spot. 1 a 5 bajan ese número de strikes."
+)
+
 distancia_strikes = st.sidebar.selectbox("Distancia entre Strikes (número de saltos):", [1, 2, 3, 4], index=0)
 
 botón_calcular = st.sidebar.button("Analizar Cadenas de Opciones", type="primary")
@@ -52,7 +62,7 @@ if botón_calcular:
                         continue
                     
                     hoy = datetime.now()
-                    fechas_exp = [datetime.strptime(exp, "%Y-%m-%d") for exp in expirations]
+                    fechas_exp = [datetime.strptime(exp, "%Y-%m-%d") for exp in fechas_exp]
                     dias_exp = [(exp - hoy).days for exp in fechas_exp]
                     
                     # Seleccionar el vencimiento con menor diferencia absoluta
@@ -68,17 +78,33 @@ if botón_calcular:
                         resultados.append({"Ticker": ticker, "Estado": "Cadena de Puts vacía"})
                         continue
                     
-                    # Ordenar por Strike ascendente
+                    # Ordenar por Strike ascendente y limpiar índice
                     puts = puts.sort_values(by="strike").reset_index(drop=True)
                     
-                    # 4. Determinar Strike Superior (Cercano a Spot - Offset)
-                    target_strike = spot_price - offset
+                    # 4. Determinar Strike Base (el más cercano hacia abajo del Spot)
+                    puts_debajo_spot = puts[puts['strike'] <= spot_price]
                     
-                    # Encontrar el índice del strike más cercano
-                    puts['dif_strike'] = (puts['strike'] - target_strike).abs()
-                    idx_sup = puts['dif_strike'].idxmin()
+                    if puts_debajo_spot.empty:
+                        resultados.append({
+                            "Ticker": ticker,
+                            "Estado": f"No existen strikes menores o iguales al precio spot (${spot_price:.2f})"
+                        })
+                        continue
                     
-                    # 5. Determinar Strike Inferior (distancia_strikes hacia abajo)
+                    # Índice del strike más alto pero menor/igual al spot (ATM inferior)
+                    idx_base = puts_debajo_spot['strike'].idxmax()
+                    
+                    # Aplicar el Offset en pasos de strikes
+                    idx_sup = idx_base - offset_pasos
+                    
+                    if idx_sup < 0:
+                        resultados.append({
+                            "Ticker": ticker,
+                            "Estado": f"El offset de {offset_pasos} strikes excede los strikes disponibles hacia abajo."
+                        })
+                        continue
+                    
+                    # 5. Determinar Strike Inferior (distancia_strikes hacia abajo del vendido)
                     idx_inf = idx_sup - distancia_strikes
                     
                     if idx_inf < 0:
